@@ -13,4 +13,5 @@ class ScrapyPr1Item(scrapy.Item):
     # name = scrapy.Field()
     title = scrapy.Field()
     vid = scrapy.Field()
+    duration = scrapy.Field()
 #     desc = scrapy.Field()

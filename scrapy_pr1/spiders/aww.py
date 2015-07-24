@@ -13,13 +13,28 @@ class AwwSpider(scrapy.Spider):
     start_urls = (
         'https://www.youtube.com/playlist?list=PLrEnWoR732-DN561GnxXKMlocLMc4v4jL',
     )
-
+    
+    def __init__(self, category=None, *args, **kwargs):
+        super(AwwSpider, self).__init__(*args, **kwargs)
+        with open('vids.json') as data_file:    
+            self.history = json.load(data_file)
+         
+    def _extractData(self, tr):
+        item = ScrapyPr1Item()
+        item['vid'] = tr.xpath('@data-video-id').extract()[0]
+        for oldItem in self.history:
+            if oldItem['vid'] == item['vid']:
+                return None
+        item['title'] = tr.xpath('@data-title').extract()[0]
+        item['duration'] = tr.xpath('.//div[@class="timestamp"]/span/text()').extract()[0]
+        return item
+    
     def parse(self, response):
         counter = 0
         for tr in response.xpath('//table/tbody/tr'):
-            item = ScrapyPr1Item()
-            item['title'] = tr.xpath('@data-title').extract()[0]
-            item['vid'] = tr.xpath('@data-video-id').extract()[0]
+            item = self._extractData(tr)
+            if item == None:
+                return
             counter+=1
             yield item
         load_more = response.xpath("//button[@data-uix-load-more-target-id]/@data-uix-load-more-href").extract()[0]
@@ -40,9 +55,9 @@ class AwwSpider(scrapy.Spider):
             return
         content = Selector(text=data_dict['content_html'])
         for tr in content.xpath('//tr[@data-title]'):
-            item = ScrapyPr1Item()
-            item['title'] = tr.xpath('@data-title').extract()[0]
-            item['vid'] = tr.xpath('@data-video-id').extract()[0]
+            item = self._extractData(tr)
+            if item == None:
+                return
             counter+=1
             yield item        
         logging.debug("load %d more items in ajax", counter)    
