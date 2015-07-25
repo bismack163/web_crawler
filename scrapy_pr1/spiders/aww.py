@@ -4,6 +4,9 @@ import json
 from scrapy.selector import Selector
 import logging
 from scrapy_pr1.items import ScrapyPr1Item
+import youtube_dl
+import shutil
+ydl_opts = {'outtmpl':'./vid/%(title)s-%(id)s.%(ext)s'}
 # logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 # logging = logging.getLogger()
 
@@ -16,18 +19,45 @@ class AwwSpider(scrapy.Spider):
     
     def __init__(self, category=None, *args, **kwargs):
         super(AwwSpider, self).__init__(*args, **kwargs)
+        self.items = []
         with open('vids.json') as data_file:    
             self.history = json.load(data_file)
+            if len(self.history) > 0:
+                self.lastHistoryVid = self.history[0]['vid']
+            else:
+                self.lastHistoryVid = None
+    
+    def closed(self, reason):
+        if reason != 'finished':
+            return
+        shutil.copy2('vids.json', 'vids.json.bak')
+        with open('vids.json', 'wb') as data_file:    
+            data_file.write('[\n')
+            for item in self.items:
+                line = json.dumps(dict(item)) + ",\n"
+                data_file.write(line)
+            for item in self.history:
+                line = json.dumps(dict(item)) + ",\n"
+                data_file.write(line)
+            data_file.write(']\n')
          
     def _extractData(self, tr):
         item = ScrapyPr1Item()
         item['vid'] = tr.xpath('@data-video-id').extract()[0]
-        for oldItem in self.history:
-            if oldItem['vid'] == item['vid']:
-                return None
+        if self.lastHistoryVid == item['vid']:
+            return None
+#         for oldItem in self.history:
+#             if oldItem['vid'] == item['vid']:
+#                 return None
         item['title'] = tr.xpath('@data-title').extract()[0]
         item['duration'] = tr.xpath('.//div[@class="timestamp"]/span/text()').extract()[0]
+        self._download(item['vid'])
+        self.items.append(item)
         return item
+    
+    def _download(self, vid):
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            ydl.download(['http://www.youtube.com/watch?v=%s'% vid])
     
     def parse(self, response):
         counter = 0
